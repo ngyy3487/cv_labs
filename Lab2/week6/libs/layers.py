@@ -259,8 +259,27 @@ def conv_forward_naive(x, w, b, conv_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    stride = conv_param["stride"]
+    pad = conv_param["pad"]
+    padded_input = np.pad(x,((0,0),(0,0),(pad,pad),(pad,pad)))
+    n,c,h,width = x.shape
+    f,cc,hh,ww = w.shape
+    output_h = int(1 + (h +2*pad-hh)/stride)
+    output_w = int(1+(width+2*pad-ww)/stride)
 
+    output = np.zeros((n,f,output_h,output_w))
+
+    for data_pt in range(n):
+      for filter in range(f):
+        for row in range(output_h):
+          for col in range(output_w):
+            start_h = row*stride
+            start_w = col*stride
+            x_slice = padded_input[data_pt,:,start_h:start_h+hh,start_w:start_w+ww]
+            output[data_pt][filter][row][col]= np.sum(w[filter]*x_slice)+b[filter]
+            #need to add b!!
+
+    out = output
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -288,7 +307,35 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x, weight, b, conv_param = cache
+    n,f,output_h,output_w = dout.shape
+    nn,c,h,w = x.shape
+    hh,ww = weight.shape[2],weight.shape[3]
+    stride = conv_param['stride']
+    pad = conv_param['pad']
+    padded_x = np.pad(x,((0,0),(0,0),(pad,pad),(pad,pad)))
+
+    dx = np.zeros((n,c,h,w))
+    dx_pad = np.zeros_like(padded_x)
+    dw = np.zeros(weight.shape)
+    db = np.zeros(b.shape)
+
+    for data_pt in range(n):
+      for filter in range(f):
+        db[filter] += dout[data_pt,filter].sum()
+        for filter_row in range(hh):
+          for filter_col in range(ww):
+            for x_row in range(output_h):
+              for x_col in range(output_w):
+                dw[filter,:,filter_row,filter_col]+=dout[data_pt,filter,x_row,x_col]*padded_x[data_pt,:,x_row*stride+filter_row,x_col*stride+filter_col]             
+    
+    for data_pt in range(n):
+      for filter in range(f):
+        for x_row in range(output_h):
+          for x_col in range(output_w):
+            dx_pad[data_pt,:,x_row*stride:x_row*stride+hh,x_col*stride:x_col*stride+ww] += weight[filter]*dout[data_pt,filter,x_row,x_col]
+
+    dx = dx_pad[:,:,pad:pad+h,pad:pad+w]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -322,7 +369,21 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    n,c,h,w = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    stride = pool_param['stride']
+    output_h = int(1+(h-pool_height)/stride)
+    output_w = int(1+(w-pool_width)/stride)
+
+    out = np.zeros((n,c,output_h,output_w))
+
+    for data_pt in range(n):
+      for channel in range(c):
+        for row in range(output_h):
+          for col in range(output_w):
+            x_slice = x[data_pt,channel,row*stride:row*stride+pool_height,col*stride:col*stride+pool_width]
+            out[data_pt,channel,row,col] = np.amax(x_slice)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -348,8 +409,24 @@ def max_pool_backward_naive(dout, cache):
     # TODO: Implement the max-pooling backward pass                           #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    x,pool_param = cache
+    n,c,h,w = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    stride = pool_param['stride']
+    output_h = int(1+(h-pool_height)/stride)
+    output_w = int(1+(w-pool_width)/stride)
 
-    pass
+    dx = np.zeros_like(x)
+
+    for data_pt in range(n):
+      for channel in range(c):
+        for row in range(output_h):
+          for col in range(output_w):
+            i = np.argmax(x[data_pt,channel,row*stride:row*stride+pool_height,col*stride:col*stride+pool_width])
+            i1,i2 = np.unravel_index(i,(pool_height,pool_width))
+            dx[data_pt,channel,row*stride:row*stride+pool_height,col*stride:col*stride+pool_width][i1,i2] = dout[data_pt,channel,row,col]
+            
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
